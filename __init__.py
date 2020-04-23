@@ -1,6 +1,5 @@
 from adapt.intent import IntentBuilder
 from mycroft.skills.core import FallbackSkill
-from mycroft.util.log import getLogger
 from mycroft.util.format import nice_number
 from mycroft import MycroftSkill, intent_file_handler
 from os.path import dirname, join
@@ -18,7 +17,6 @@ from .ha_client import HomeAssistantClient
 
 
 __author__ = 'robconnolly, btotharye, nielstron'
-LOGGER = getLogger(__name__)
 
 # Timeout time for HA requests
 TIMEOUT = 10
@@ -61,7 +59,7 @@ class HomeAssistantSkill(FallbackSkill):
                         self.settings.get('enable_fallback')
 
     def _force_setup(self):
-        LOGGER.debug('Creating a new HomeAssistant-Client')
+        self.log.debug('Creating a new HomeAssistant-Client')
         self._setup(True)
 
     def initialize(self):
@@ -110,6 +108,14 @@ class HomeAssistantSkill(FallbackSkill):
                               "dev_name": entity})
         return ha_entity
 
+    def _check_availability(self, ha_entity):
+        self.log.debug(ha_entity['state'])
+        if ha_entity['state'] == 'unavailable':
+            self.speak_dialog('homeassistant.error.unavailable', data={
+                            "dev_name": ha_entity['dev_name']})
+            ha_entity = None
+        return ha_entity
+
     # Calls passed method and catches often occurring exceptions
     def _handle_client_exception(self, callback, *args, **kwargs):
         try:
@@ -141,71 +147,71 @@ class HomeAssistantSkill(FallbackSkill):
 
     # Intent handlers
     def handle_turn_on_intent(self, message):
-        LOGGER.debug("Turn on intent on entity: "+message.data.get("entity"))
+        self.log.debug("Turn on intent on entity: "+message.data.get("entity"))
         message.data["Entity"] = message.data.get("entity")
         message.data["Action"] = "on"
         self._handle_switch(message)
 
     def handle_turn_off_intent(self, message):
-        LOGGER.debug(message.data)
-        LOGGER.debug("Turn off intent on entity: "+message.data.get("entity"))
+        self.log.debug(message.data)
+        self.log.debug("Turn off intent on entity: "+message.data.get("entity"))
         message.data["Entity"] = message.data.get("entity")
         message.data["Action"] = "off"
         self._handle_switch(message)
 
     def handle_toggle_intent(self, message):
-        LOGGER.debug("Toggle intent on entity: " + message.data.get("entity"))
+        self.log.debug("Toggle intent on entity: " + message.data.get("entity"))
         message.data["Entity"] = message.data.get("entity")
         message.data["Action"] = "toggle"
         self._handle_switch(message)
 
     def handle_sensor_intent(self, message):
-        LOGGER.debug("Sensor intent on entity: "+message.data.get("entity"))
+        self.log.debug("Sensor intent on entity: "+message.data.get("entity"))
         message.data["Entity"] = message.data.get("entity")
         self._handle_sensor(message)
 
     def handle_light_set_intent(self, message):
-        LOGGER.debug("Set light intensity on: "+message.data.get("entity") \
+        self.log.debug("Set light intensity on: "+message.data.get("entity") \
             +"to"+message.data.get("brightnessvalue")+"percent")
         message.data["Entity"] = message.data.get("entity")
         message.data["Brightnessvalue"] = message.data.get("brightnessvalue")
         self._handle_light_set(message)
 
     def handle_light_increase_intent(self, message):
-        LOGGER.debug("Increase light intensity on: "+message.data.get("entity"))
+        self.log.debug("Increase light intensity on: "+message.data.get("entity"))
         message.data["Entity"] = message.data.get("entity")
         message.data["Action"] = "up"
         self._handle_light_adjust(message)
 
     def handle_light_decrease_intent(self, message):
-        LOGGER.debug("Decrease light intensity on: "+message.data.get("entity"))
+        self.log.debug("Decrease light intensity on: "+message.data.get("entity"))
         message.data["Entity"] = message.data.get("entity")
         message.data["Action"] = "down"
         self._handle_light_adjust(message)
 
     def handle_automation_intent(self, message):
-        LOGGER.debug("Automation trigger intent on entity: "+message.data.get("entity"))
+        self.log.debug("Automation trigger intent on entity: "+message.data.get("entity"))
         message.data["Entity"] = message.data.get("entity")
         self._handle_automation(message)
 
     def handle_tracker_intent(self, message):
-        LOGGER.debug("Turn on intent on entity: "+message.data.get("entity"))
+        self.log.debug("Turn on intent on entity: "+message.data.get("entity"))
         message.data["Entity"] = message.data.get("entity")
         self._handle_tracker(message)
 
     def handle_set_thermostat_intent(self, message):
-        LOGGER.debug("Set thermostat intent on entity: "+message.data.get("entity"))
+        self.log.debug("Set thermostat intent on entity: "+message.data.get("entity"))
         message.data["Entity"] = message.data.get("entity")
         message.data["Temp"] = message.data.get("temp")
         self._handle_set_thermostat(message)
 
 
     def _handle_switch(self, message):
-        LOGGER.debug("Starting Switch Intent")
+        self.log.debug("Starting Switch Intent")
         entity = message.data["Entity"]
         action = message.data["Action"]
-        LOGGER.debug("Entity: %s" % entity)
-        LOGGER.debug("Action: %s" % action)
+        self.log.debug("Entity: %s" % entity)
+        self.log.debug("Action: %s" % action)
 
         ha_entity = self._find_entity(
             entity,
@@ -219,15 +225,17 @@ class HomeAssistantSkill(FallbackSkill):
                 'climate'
             ]
         )
+        self._check_availability(ha_entity)
         if not ha_entity:
             return
-        LOGGER.debug("Entity State: %s" % ha_entity['state'])
+
+        self.log.debug("Entity State: %s" % ha_entity['state'])
         ha_data = {'entity_id': ha_entity['id']}
 
         # IDEA: set context for 'turn it off' again or similar
         # self.set_context('Entity', ha_entity['dev_name'])
         if ha_entity['state'] == action:
-            LOGGER.debug("Entity in requested state")
+            self.log.debug("Entity in requested state")
             self.speak_dialog('homeassistant.device.already', data={
                 "dev_name": ha_entity['dev_name'], 'action': action})
         elif action == "toggle":
@@ -258,13 +266,15 @@ class HomeAssistantSkill(FallbackSkill):
             brightness_req = 10.0
         brightness_value = int(brightness_req / 100 * 255)
         brightness_percentage = int(brightness_req)
-        LOGGER.debug("Entity: %s" % entity)
-        LOGGER.debug("Brightness Value: %s" % brightness_value)
-        LOGGER.debug("Brightness Percent: %s" % brightness_percentage)
+        self.log.debug("Entity: %s" % entity)
+        self.log.debug("Brightness Value: %s" % brightness_value)
+        self.log.debug("Brightness Percent: %s" % brightness_percentage)
 
         ha_entity = self._find_entity(entity, ['group', 'light'])
+        self._check_availability(ha_entity)
         if not ha_entity:
             return
+
         ha_data = {'entity_id': ha_entity['id']}
 
         # IDEA: set context for 'turn it off again' or similar
@@ -286,12 +296,14 @@ class HomeAssistantSkill(FallbackSkill):
         brightness_req = 10.0
         brightness_value = int(brightness_req / 100 * 255)
         # brightness_percentage = int(brightness_req) # debating use
-        LOGGER.debug("Entity: %s" % entity)
-        LOGGER.debug("Brightness Value: %s" % brightness_value)
+        self.log.debug("Entity: %s" % entity)
+        self.log.debug("Brightness Value: %s" % brightness_value)
 
         ha_entity = self._find_entity(entity, ['group', 'light'])
+        self._check_availability(ha_entity)
         if not ha_entity:
             return
+        
         ha_data = {'entity_id': ha_entity['id']}
         # IDEA: set context for 'turn it off again' or similar
         # self.set_context('Entity', ha_entity['dev_name'])
@@ -350,12 +362,12 @@ class HomeAssistantSkill(FallbackSkill):
 
     def _handle_automation(self, message):
         entity = message.data["Entity"]
-        LOGGER.debug("Entity: %s" % entity)
+        self.log.debug("Entity: %s" % entity)
         ha_entity = self._find_entity(
             entity,
             ['automation', 'scene', 'script']
         )
-
+        self._check_availability(ha_entity)
         if not ha_entity:
             return
 
@@ -364,7 +376,7 @@ class HomeAssistantSkill(FallbackSkill):
         # IDEA: set context for 'turn it off again' or similar
         # self.set_context('Entity', ha_entity['dev_name'])
 
-        LOGGER.debug("Triggered automation/scene/script: {}".format(ha_data))
+        self.log.debug("Triggered automation/scene/script: {}".format(ha_data))
         if "automation" in ha_entity['id']:
             self.ha.execute_service('automation', 'trigger', ha_data)
             self.speak_dialog('homeassistant.automation.trigger',
@@ -382,9 +394,10 @@ class HomeAssistantSkill(FallbackSkill):
 
     def _handle_sensor(self, message):
         entity = message.data["Entity"]
-        LOGGER.debug("Entity: %s" % entity)
+        self.log.debug("Entity: %s" % entity)
 
         ha_entity = self._find_entity(entity, ['sensor', 'switch'])
+        self._check_availability(ha_entity)
         if not ha_entity:
             return
 
@@ -439,9 +452,10 @@ class HomeAssistantSkill(FallbackSkill):
 
     def _handle_tracker(self, message):
         entity = message.data["Entity"]
-        LOGGER.debug("Entity: %s" % entity)
+        self.log.debug("Entity: %s" % entity)
 
         ha_entity = self._find_entity(entity, ['device_tracker'])
+        self._check_availability(ha_entity)
         if not ha_entity:
             return
 
@@ -457,12 +471,13 @@ class HomeAssistantSkill(FallbackSkill):
 
     def _handle_set_thermostat(self, message):
         entity = message.data["entity"]
-        LOGGER.debug("Entity: %s" % entity)
-        LOGGER.debug("This is the message data: %s" % message.data)
+        self.log.debug("Entity: %s" % entity)
+        self.log.debug("This is the message data: %s" % message.data)
         temperature = message.data["temp"]
-        LOGGER.debug("Temperature: %s" % temperature)
+        self.log.debug("Temperature: %s" % temperature)
 
         ha_entity = self._find_entity(entity, ['climate'])
+        self._check_availability(ha_entity)
         if not ha_entity:
             return
 
