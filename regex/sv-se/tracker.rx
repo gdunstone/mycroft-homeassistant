@@ -1,2 +1,0 @@
-(var är|(vilken är (den )?)?platsen för) (?P<Entity>.*)
-(?P<Entity>.*) plats

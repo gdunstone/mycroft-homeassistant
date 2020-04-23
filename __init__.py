@@ -66,14 +66,6 @@ class HomeAssistantSkill(FallbackSkill):
 
     def initialize(self):
         self.language = self.config_core.get('lang')
-        self.load_vocab_files(join(dirname(__file__), 'vocab', self.lang))
-        self.load_regex_files(join(dirname(__file__), 'regex', self.lang))
-        self.__build_automation_intent()
-        self.__build_tracker_intent()
-        self.register_intent_file(
-            'set.climate.intent',
-            self.handle_set_thermostat_intent
-        )
         self.register_intent_file('turn.on.intent', self.handle_turn_on_intent)
         self.register_intent_file('turn.off.intent', self.handle_turn_off_intent)
         self.register_intent_file('toggle.intent', self.handle_toggle_intent)
@@ -84,7 +76,11 @@ class HomeAssistantSkill(FallbackSkill):
             self.handle_light_increase_intent)
         self.register_intent_file('decrease.light.brightness.intent',
             self.handle_light_decrease_intent)
-        
+        self.register_intent_file('automation.intent', self.handle_automation_intent)
+        self.register_intent_file('tracker.intent', self.handle_tracker_intent)
+        self.register_intent_file('set.climate.intent',
+            self.handle_set_thermostat_intent)
+
         # Needs higher priority than general fallback skills
         self.register_fallback(self.handle_fallback, 2)
         # Check and then monitor for credential changes
@@ -95,17 +91,6 @@ class HomeAssistantSkill(FallbackSkill):
         # Force a setting refresh after the websettings changed
         # Otherwise new settings will not be regarded
         self._force_setup()
-
-    def __build_automation_intent(self):
-        intent = IntentBuilder("AutomationIntent").require(
-            "AutomationActionKeyword").require("Entity").build()
-        self.register_intent(intent, self.handle_automation_intent)
-
-    def __build_tracker_intent(self):
-        intent = IntentBuilder("TrackerIntent").require(
-            "DeviceTrackerKeyword").require("Entity").build()
-        # TODO - Identity location, proximity
-        self.register_intent(intent, self.handle_tracker_intent)
 
     # Try to find an entity on the HAServer
     # Creates dialogs for errors and speaks them
@@ -175,28 +160,45 @@ class HomeAssistantSkill(FallbackSkill):
         self._handle_switch(message)
 
     def handle_sensor_intent(self, message):
-        LOGGER.debug("Turn on intent on entity: "+message.data.get("entity"))
+        LOGGER.debug("Sensor intent on entity: "+message.data.get("entity"))
         message.data["Entity"] = message.data.get("entity")
         self._handle_sensor(message)
 
     def handle_light_set_intent(self, message):
-        LOGGER.debug("Change light intensity: "+message.data.get("entity") \
+        LOGGER.debug("Set light intensity on: "+message.data.get("entity") \
             +"to"+message.data.get("brightnessvalue")+"percent")
         message.data["Entity"] = message.data.get("entity")
         message.data["Brightnessvalue"] = message.data.get("brightnessvalue")
         self._handle_light_set(message)
 
     def handle_light_increase_intent(self, message):
-        LOGGER.debug("Increase light intensity: "+message.data.get("entity"))
+        LOGGER.debug("Increase light intensity on: "+message.data.get("entity"))
         message.data["Entity"] = message.data.get("entity")
         message.data["Action"] = "up"
         self._handle_light_adjust(message)
 
     def handle_light_decrease_intent(self, message):
-        LOGGER.debug("Decrease light intensity: "+message.data.get("entity"))
+        LOGGER.debug("Decrease light intensity on: "+message.data.get("entity"))
         message.data["Entity"] = message.data.get("entity")
         message.data["Action"] = "down"
         self._handle_light_adjust(message)
+
+    def handle_automation_intent(self, message):
+        LOGGER.debug("Automation trigger intent on entity: "+message.data.get("entity"))
+        message.data["Entity"] = message.data.get("entity")
+        self._handle_automation(message)
+
+    def handle_tracker_intent(self, message):
+        LOGGER.debug("Turn on intent on entity: "+message.data.get("entity"))
+        message.data["Entity"] = message.data.get("entity")
+        self._handle_tracker(message)
+
+    def handle_set_thermostat_intent(self, message):
+        LOGGER.debug("Set thermostat intent on entity: "+message.data.get("entity"))
+        message.data["Entity"] = message.data.get("entity")
+        message.data["Temp"] = message.data.get("temp")
+        self._handle_set_thermostat(message)
+
 
     def _handle_switch(self, message):
         LOGGER.debug("Starting Switch Intent")
@@ -346,7 +348,7 @@ class HomeAssistantSkill(FallbackSkill):
             self.speak_dialog('homeassistant.error.sorry')
             return
 
-    def handle_automation_intent(self, message):
+    def _handle_automation(self, message):
         entity = message.data["Entity"]
         LOGGER.debug("Entity: %s" % entity)
         ha_entity = self._find_entity(
@@ -370,12 +372,12 @@ class HomeAssistantSkill(FallbackSkill):
         elif "script" in ha_entity['id']:
             self.speak_dialog('homeassistant.automation.trigger',
                               data={"dev_name": ha_entity['dev_name']})
-            self.ha.execute_service("homeassistant", "turn_on",
+            self.ha.execute_service("script", "turn_on",
                                     data=ha_data)
         elif "scene" in ha_entity['id']:
-            self.speak_dialog('homeassistant.device.on',
+            self.speak_dialog('homeassistant.scene.on',
                               data=ha_entity)
-            self.ha.execute_service("homeassistant", "turn_on",
+            self.ha.execute_service("scene", "turn_on",
                                     data=ha_data)
 
     def _handle_sensor(self, message):
@@ -434,7 +436,8 @@ class HomeAssistantSkill(FallbackSkill):
     # Proximity might be an issue
     # - overlapping command for directions modules
     # - (e.g. "How far is x from y?")
-    def handle_tracker_intent(self, message):
+
+    def _handle_tracker(self, message):
         entity = message.data["Entity"]
         LOGGER.debug("Entity: %s" % entity)
 
@@ -452,8 +455,7 @@ class HomeAssistantSkill(FallbackSkill):
                           data={'dev_name': dev_name,
                                 'location': dev_location})
 
-    @intent_file_handler('set.climate.intent')
-    def handle_set_thermostat_intent(self, message):
+    def _handle_set_thermostat(self, message):
         entity = message.data["entity"]
         LOGGER.debug("Entity: %s" % entity)
         LOGGER.debug("This is the message data: %s" % message.data)

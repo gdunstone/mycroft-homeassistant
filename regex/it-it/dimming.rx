@@ -1,2 +1,0 @@
-(imposta) (?:luminosità di )?(?P<Entity>.*) (a) (?P<BrightnessValue>\d*)(?: percento)?
-(cala|aumenta|incrementa|diminuisci) (?:luminosità di )?(?P<Entity>.*?) (?:del)? (?P<BrightnessValue>\d*)?(?: percento)?
