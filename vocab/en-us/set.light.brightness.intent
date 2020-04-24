@@ -1,1 +1,1 @@
-set brightness of {{entity}} to {{brightnessvalue}} percent
+(set|change) (the|) (brightness|intensity) of {{entity}} to {{brightnessvalue}} percent

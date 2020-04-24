@@ -1,1 +1,0 @@
-(règle) (?P<Entity>.*) le thermostat à (?P<temp>[0-9]*)

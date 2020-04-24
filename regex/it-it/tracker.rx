@@ -1,2 +1,0 @@
-(dove è|(qual è (la )?)?posizione di) (?P<Entity>.*)
-(?P<Entity>.*) posizione
