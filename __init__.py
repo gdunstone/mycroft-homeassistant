@@ -3,6 +3,7 @@ from mycroft.skills.core import FallbackSkill
 from mycroft.util.format import nice_number
 from mycroft import MycroftSkill, intent_file_handler
 from os.path import dirname, join
+import json
 
 from requests.exceptions import (
     RequestException,
@@ -78,6 +79,10 @@ class HomeAssistantSkill(FallbackSkill):
         self.register_intent_file('tracker.intent', self.handle_tracker_intent)
         self.register_intent_file('set.climate.intent',
             self.handle_set_thermostat_intent)
+
+        # Phases for turn of all intent
+        with open(("/opt/mycroft/skills/homeassistant.mycroft/vocab/"+self.language+"/turn.all.json"),encoding='utf8') as f:
+            self.turn_all = json.load(f)
 
         # Needs higher priority than general fallback skills
         self.register_fallback(self.handle_fallback, 2)
@@ -205,7 +210,6 @@ class HomeAssistantSkill(FallbackSkill):
         message.data["Temp"] = message.data.get("temp")
         self._handle_set_thermostat(message)
 
-
     def _handle_switch(self, message):
         self.log.debug("Starting Switch Intent")
         entity = message.data["Entity"]
@@ -213,6 +217,23 @@ class HomeAssistantSkill(FallbackSkill):
         self.log.debug("Entity: %s" % entity)
         self.log.debug("Action: %s" % action)
 
+        # Handle turn on/off all intent
+        try:
+            for domain in dict(self.turn_all.items()):
+                tmp = (list(dict(self.turn_all).get(domain)))
+                if entity in tmp:
+                    ha_entity = {'dev_name': entity}
+                    ha_data = {'entity_id': 'all'}
+
+                    self.ha.execute_service(domain, "turn_%s" % action,
+                                                ha_data)
+                    self.speak_dialog('homeassistant.device.%s'% action,
+                                        data=ha_entity)
+                    return
+        except:
+           self.log.debug("Not turn on/off all intent")
+        
+        # Hande single entity
         ha_entity = self._find_entity(
             entity,
             [
