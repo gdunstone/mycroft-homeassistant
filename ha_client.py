@@ -78,6 +78,8 @@ class HomeAssistantClient(object):
                                 ['friendly_name'],
                                 "state": state['state'],
                                 "best_score": best_score}
+                            if state['entity_id'].split(".")[0] == "group":
+                                best_entity.update({'ids': state['attributes']['entity_id']})
                         score = fuzz.token_sort_ratio(
                             entity,
                             state['entity_id'].lower())
@@ -89,9 +91,13 @@ class HomeAssistantClient(object):
                                 ['friendly_name'],
                                 "state": state['state'],
                                 "best_score": best_score}
+                            if state['entity_id'].split(".")[0] == "group":
+                                best_entity.update({'ids': state['attributes']['entity_id']})
                 except KeyError:
                     pass
             return best_entity
+
+
 
     def find_entity_attr(self, entity):
         """checking the entity attributes to be used in the response dialog.

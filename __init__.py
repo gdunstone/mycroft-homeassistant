@@ -251,31 +251,60 @@ class HomeAssistantSkill(FallbackSkill):
             return
 
         self.log.debug("Entity State: %s" % ha_entity['state'])
-        ha_data = {'entity_id': ha_entity['id']}
-
-        # IDEA: set context for 'turn it off' again or similar
-        # self.set_context('Entity', ha_entity['dev_name'])
-        if ha_entity['state'] == action:
-            self.log.debug("Entity in requested state")
-            self.speak_dialog('homeassistant.device.already', data={
-                "dev_name": ha_entity['dev_name'], 'action': action})
-        elif action == "toggle":
-            self.ha.execute_service("homeassistant", "toggle",
+        
+        #Handle groups
+        self.log.debug(ha_entity)
+        if 'ids'in ha_entity.keys():
+            for ent in ha_entity['ids']:
+                ha_ent = self._find_entity(
+                    ent,
+                    [
+                        'light',
+                        'fan',
+                        'switch',
+                        'scene',
+                        'input_boolean',
+                        'climate'
+                    ]
+                )
+                self._check_availability(ha_ent)
+                if not ha_ent:
+                    continue
+                ha_data = {'entity_id': ent}
+                if action == "toggle":
+                   self.ha.execute_service("homeassistant", "toggle",
+                                        ha_data)
+                else: 
+                    self.ha.execute_service("homeassistant", "turn_%s" % action,
                                     ha_data)
-            if(ha_entity['state'] == 'off'):
-                action = 'on'
-            else:
-                action = 'off'
             self.speak_dialog('homeassistant.device.%s' % action,
-                              data=ha_entity)
-        elif action in ["on", "off"]:
-            self.speak_dialog('homeassistant.device.%s' % action,
-                              data=ha_entity)
-            self.ha.execute_service("homeassistant", "turn_%s" % action,
-                                    ha_data)
+                                data=ha_entity)
         else:
-            self.speak_dialog('homeassistant.error.sorry')
-            return
+            ha_data = {'entity_id': ha_entity['id']}
+
+            # IDEA: set context for 'turn it off' again or similar
+            # self.set_context('Entity', ha_entity['dev_name'])
+            if ha_entity['state'] == action:
+                self.log.debug("Entity in requested state")
+                self.speak_dialog('homeassistant.device.already', data={
+                    "dev_name": ha_entity['dev_name'], 'action': action})
+            elif action == "toggle":
+                self.ha.execute_service("homeassistant", "toggle",
+                                        ha_data)
+                if(ha_entity['state'] == 'off'):
+                    action = 'on'
+                else:
+                    action = 'off'
+                self.speak_dialog('homeassistant.device.%s' % action,
+                                data=ha_entity)
+            elif action in ["on", "off"]:
+                self.speak_dialog('homeassistant.device.%s' % action,
+                                data=ha_entity)
+                self.ha.execute_service("homeassistant", "turn_%s" % action,
+                                        ha_data)
+            else:
+                self.speak_dialog('homeassistant.error.sorry')
+                return
 
     def _handle_light_set(self, message):
         entity = message.data["entity"]
