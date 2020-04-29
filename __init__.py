@@ -2,7 +2,8 @@ from adapt.intent import IntentBuilder
 from mycroft.skills.core import FallbackSkill
 from mycroft.util.format import nice_number
 from mycroft import MycroftSkill, intent_file_handler
-from os.path import dirname, join
+from os.path import dirname, join, realpath
+
 import json
 
 from requests.exceptions import (
@@ -33,6 +34,10 @@ class HomeAssistantSkill(FallbackSkill):
 
     def _setup(self, force=False):
         if self.settings is not None and (force or self.ha is None):
+            ip = self.settings.get('host')
+            token = "sgfsd" #self.settings.get('token')
+            if not ip or not token:
+                self.speak_dialog('homeassistant.error.setup')
             portnumber = self.settings.get('portnum')
             try:
                 portnumber = int(portnumber)
@@ -42,8 +47,8 @@ class HomeAssistantSkill(FallbackSkill):
                 # String might be some rubbish (like '')
                 portnumber = 0
             self.ha = HomeAssistantClient(
-                self.settings.get('host'),
-                self.settings.get('token'),
+                ip,
+                token,
                 portnumber,
                 self.settings.get('ssl'),
                 self.settings.get('verify')
@@ -81,7 +86,7 @@ class HomeAssistantSkill(FallbackSkill):
             self.handle_set_thermostat_intent)
 
         # Phases for turn of all intent
-        with open(("/opt/mycroft/skills/homeassistant.mycroft/vocab/"+self.language+"/turn.all.json"),encoding='utf8') as f:
+        with open((dirname(realpath(__file__))+"/vocab/"+self.language+"/turn.all.json"),encoding='utf8') as f:
             self.turn_all = json.load(f)
 
         # Needs higher priority than general fallback skills
@@ -246,8 +251,7 @@ class HomeAssistantSkill(FallbackSkill):
                 'climate'
             ]
         )
-        self._check_availability(ha_entity)
-        if not ha_entity:
+        if not ha_entity or not self._check_availability(ha_entity):
             return
 
         self.log.debug("Entity State: %s" % ha_entity['state'])
@@ -267,8 +271,7 @@ class HomeAssistantSkill(FallbackSkill):
                         'climate'
                     ]
                 )
-                self._check_availability(ha_ent)
-                if not ha_ent:
+                if not ha_ent or not self._check_availability(ha_ent):
                     continue
                 ha_data = {'entity_id': ent}
                 if action == "toggle":
@@ -321,8 +324,7 @@ class HomeAssistantSkill(FallbackSkill):
         self.log.debug("Brightness Percent: %s" % brightness_percentage)
 
         ha_entity = self._find_entity(entity, ['group', 'light'])
-        self._check_availability(ha_entity)
-        if not ha_entity:
+        if not ha_entity or not self._check_availability(ha_entity):
             return
 
         ha_data = {'entity_id': ha_entity['id']}
@@ -350,8 +352,7 @@ class HomeAssistantSkill(FallbackSkill):
         self.log.debug("Brightness Value: %s" % brightness_value)
 
         ha_entity = self._find_entity(entity, ['group', 'light'])
-        self._check_availability(ha_entity)
-        if not ha_entity:
+        if not ha_entity or not self._check_availability(ha_entity):
             return
         
         ha_data = {'entity_id': ha_entity['id']}
@@ -417,8 +418,7 @@ class HomeAssistantSkill(FallbackSkill):
             entity,
             ['automation', 'scene', 'script']
         )
-        self._check_availability(ha_entity)
-        if not ha_entity:
+        if not ha_entity or not self._check_availability(ha_entity):
             return
 
         ha_data = {'entity_id': ha_entity['id']}
@@ -447,8 +447,7 @@ class HomeAssistantSkill(FallbackSkill):
         self.log.debug("Entity: %s" % entity)
 
         ha_entity = self._find_entity(entity, ['sensor', 'switch'])
-        self._check_availability(ha_entity)
-        if not ha_entity:
+        if not ha_entity or not self._check_availability(ha_entity):
             return
 
         entity = ha_entity['id']
@@ -505,8 +504,7 @@ class HomeAssistantSkill(FallbackSkill):
         self.log.debug("Entity: %s" % entity)
 
         ha_entity = self._find_entity(entity, ['device_tracker'])
-        self._check_availability(ha_entity)
-        if not ha_entity:
+        if not ha_entity or not self._check_availability(ha_entity):
             return
 
         # IDEA: set context for 'locate it again' or similar
@@ -527,8 +525,7 @@ class HomeAssistantSkill(FallbackSkill):
         self.log.debug("Temperature: %s" % temperature)
 
         ha_entity = self._find_entity(entity, ['climate'])
-        self._check_availability(ha_entity)
-        if not ha_entity:
+        if not ha_entity or not self._check_availability(ha_entity):
             return
 
         climate_data = {
