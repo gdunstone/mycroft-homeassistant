@@ -1,6 +1,6 @@
-toggle {Entity}
-switch {Entity}
-Can you toggle {Entity} please?
-Can you switch {Entity} please?
-I'd like to switch {Entity}
-I'd like to toggle {Entity}
+bascules (le|la|l) {Entity}
+changes (le|la|l) {Entity}
+peux-tu basculer (le|la|l) {Entity} sil te plait
+peux-tu changer (le|la|l) {Entity} sil te plait
+je voudrais basculer (le|la|l) {Entity}
+je voudrais changer (le|la|l) {Entity}
