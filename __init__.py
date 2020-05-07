@@ -2,7 +2,9 @@ from adapt.intent import IntentBuilder
 from mycroft.skills.core import FallbackSkill
 from mycroft.util.format import nice_number
 from mycroft import MycroftSkill, intent_file_handler
-from os.path import dirname, join
+from os.path import dirname, join, realpath
+
+import json
 
 from requests.exceptions import (
     RequestException,
@@ -32,6 +34,10 @@ class HomeAssistantSkill(FallbackSkill):
 
     def _setup(self, force=False):
         if self.settings is not None and (force or self.ha is None):
+            ip = self.settings.get('host')
+            token = "sgfsd" #self.settings.get('token')
+            if not ip or not token:
+                self.speak_dialog('homeassistant.error.setup')
             portnumber = self.settings.get('portnum')
             try:
                 portnumber = int(portnumber)
@@ -41,8 +47,8 @@ class HomeAssistantSkill(FallbackSkill):
                 # String might be some rubbish (like '')
                 portnumber = 0
             self.ha = HomeAssistantClient(
-                self.settings.get('host'),
-                self.settings.get('token'),
+                ip,
+                token,
                 portnumber,
                 self.settings.get('ssl'),
                 self.settings.get('verify')
@@ -78,6 +84,10 @@ class HomeAssistantSkill(FallbackSkill):
         self.register_intent_file('tracker.intent', self.handle_tracker_intent)
         self.register_intent_file('set.climate.intent',
             self.handle_set_thermostat_intent)
+
+        # Phases for turn of all intent
+        with open((dirname(realpath(__file__))+"/vocab/"+self.language+"/turn.all.json"),encoding='utf8') as f:
+            self.turn_all = json.load(f)
 
         # Needs higher priority than general fallback skills
         self.register_fallback(self.handle_fallback, 2)
@@ -205,7 +215,6 @@ class HomeAssistantSkill(FallbackSkill):
         message.data["Temp"] = message.data.get("temp")
         self._handle_set_thermostat(message)
 
-
     def _handle_switch(self, message):
         self.log.debug("Starting Switch Intent")
         entity = message.data["Entity"]
@@ -213,6 +222,23 @@ class HomeAssistantSkill(FallbackSkill):
         self.log.debug("Entity: %s" % entity)
         self.log.debug("Action: %s" % action)
 
+        # Handle turn on/off all intent
+        try:
+            for domain in dict(self.turn_all.items()):
+                tmp = (list(dict(self.turn_all).get(domain)))
+                if entity in tmp:
+                    ha_entity = {'dev_name': entity}
+                    ha_data = {'entity_id': 'all'}
+
+                    self.ha.execute_service(domain, "turn_%s" % action,
+                                                ha_data)
+                    self.speak_dialog('homeassistant.device.%s'% action,
+                                        data=ha_entity)
+                    return
+        except:
+           self.log.debug("Not turn on/off all intent")
+        
+        # Hande single entity
         ha_entity = self._find_entity(
             entity,
             [
@@ -225,36 +251,63 @@ class HomeAssistantSkill(FallbackSkill):
                 'climate'
             ]
         )
-        self._check_availability(ha_entity)
-        if not ha_entity:
+        if not ha_entity or not self._check_availability(ha_entity):
             return
 
         self.log.debug("Entity State: %s" % ha_entity['state'])
-        ha_data = {'entity_id': ha_entity['id']}
-
-        # IDEA: set context for 'turn it off' again or similar
-        # self.set_context('Entity', ha_entity['dev_name'])
-        if ha_entity['state'] == action:
-            self.log.debug("Entity in requested state")
-            self.speak_dialog('homeassistant.device.already', data={
-                "dev_name": ha_entity['dev_name'], 'action': action})
-        elif action == "toggle":
-            self.ha.execute_service("homeassistant", "toggle",
+        
+        #Handle groups
+        self.log.debug(ha_entity)
+        if 'ids'in ha_entity.keys():
+            for ent in ha_entity['ids']:
+                ha_ent = self._find_entity(
+                    ent,
+                    [
+                        'light',
+                        'fan',
+                        'switch',
+                        'scene',
+                        'input_boolean',
+                        'climate'
+                    ]
+                )
+                if not ha_ent or not self._check_availability(ha_ent):
+                    continue
+                ha_data = {'entity_id': ent}
+                if action == "toggle":
+                   self.ha.execute_service("homeassistant", "toggle",
+                                        ha_data)
+                else: 
+                    self.ha.execute_service("homeassistant", "turn_%s" % action,
                                     ha_data)
-            if(ha_entity['state'] == 'off'):
-                action = 'on'
-            else:
-                action = 'off'
             self.speak_dialog('homeassistant.device.%s' % action,
-                              data=ha_entity)
-        elif action in ["on", "off"]:
-            self.speak_dialog('homeassistant.device.%s' % action,
-                              data=ha_entity)
-            self.ha.execute_service("homeassistant", "turn_%s" % action,
-                                    ha_data)
+                                data=ha_entity)
         else:
-            self.speak_dialog('homeassistant.error.sorry')
-            return
+            ha_data = {'entity_id': ha_entity['id']}
+
+            # IDEA: set context for 'turn it off' again or similar
+            # self.set_context('Entity', ha_entity['dev_name'])
+            if ha_entity['state'] == action:
+                self.log.debug("Entity in requested state")
+                self.speak_dialog('homeassistant.device.already', data={
+                    "dev_name": ha_entity['dev_name'], 'action': action})
+            elif action == "toggle":
+                self.ha.execute_service("homeassistant", "toggle",
+                                        ha_data)
+                if(ha_entity['state'] == 'off'):
+                    action = 'on'
+                else:
+                    action = 'off'
+                self.speak_dialog('homeassistant.device.%s' % action,
+                                data=ha_entity)
+            elif action in ["on", "off"]:
+                self.speak_dialog('homeassistant.device.%s' % action,
+                                data=ha_entity)
+                self.ha.execute_service("homeassistant", "turn_%s" % action,
+                                        ha_data)
+            else:
+                self.speak_dialog('homeassistant.error.sorry')
+                return
 
     def _handle_light_set(self, message):
         entity = message.data["entity"]
@@ -271,8 +324,7 @@ class HomeAssistantSkill(FallbackSkill):
         self.log.debug("Brightness Percent: %s" % brightness_percentage)
 
         ha_entity = self._find_entity(entity, ['group', 'light'])
-        self._check_availability(ha_entity)
-        if not ha_entity:
+        if not ha_entity or not self._check_availability(ha_entity):
             return
 
         ha_data = {'entity_id': ha_entity['id']}
@@ -300,8 +352,7 @@ class HomeAssistantSkill(FallbackSkill):
         self.log.debug("Brightness Value: %s" % brightness_value)
 
         ha_entity = self._find_entity(entity, ['group', 'light'])
-        self._check_availability(ha_entity)
-        if not ha_entity:
+        if not ha_entity or not self._check_availability(ha_entity):
             return
         
         ha_data = {'entity_id': ha_entity['id']}
@@ -367,8 +418,7 @@ class HomeAssistantSkill(FallbackSkill):
             entity,
             ['automation', 'scene', 'script']
         )
-        self._check_availability(ha_entity)
-        if not ha_entity:
+        if not ha_entity or not self._check_availability(ha_entity):
             return
 
         ha_data = {'entity_id': ha_entity['id']}
@@ -397,8 +447,7 @@ class HomeAssistantSkill(FallbackSkill):
         self.log.debug("Entity: %s" % entity)
 
         ha_entity = self._find_entity(entity, ['sensor', 'switch'])
-        self._check_availability(ha_entity)
-        if not ha_entity:
+        if not ha_entity or not self._check_availability(ha_entity):
             return
 
         entity = ha_entity['id']
@@ -455,8 +504,7 @@ class HomeAssistantSkill(FallbackSkill):
         self.log.debug("Entity: %s" % entity)
 
         ha_entity = self._find_entity(entity, ['device_tracker'])
-        self._check_availability(ha_entity)
-        if not ha_entity:
+        if not ha_entity or not self._check_availability(ha_entity):
             return
 
         # IDEA: set context for 'locate it again' or similar
@@ -477,8 +525,7 @@ class HomeAssistantSkill(FallbackSkill):
         self.log.debug("Temperature: %s" % temperature)
 
         ha_entity = self._find_entity(entity, ['climate'])
-        self._check_availability(ha_entity)
-        if not ha_entity:
+        if not ha_entity or not self._check_availability(ha_entity):
             return
 
         climate_data = {
