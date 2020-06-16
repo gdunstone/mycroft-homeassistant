@@ -35,7 +35,7 @@ class HomeAssistantSkill(FallbackSkill):
     def _setup(self, force=False):
         if self.settings is not None and (force or self.ha is None):
             ip = self.settings.get('host')
-            token = "sgfsd" #self.settings.get('token')
+            token = self.settings.get('token')
             if not ip or not token:
                 self.speak_dialog('homeassistant.error.setup')
             portnumber = self.settings.get('portnum')
