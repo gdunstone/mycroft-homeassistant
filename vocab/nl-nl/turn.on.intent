@@ -1,4 +1,6 @@
-Zet (de|het) {Entity} aan
-Kan je alsjeblieft (de|het) {Entity} aanzetten?
-Ik wil graag (de|het) {Entity} aanzetten
-Ik wil (de|het) {Entity} aan
+Schakel {Entity} in
+Zet {Entity} aan
+Kan je alsjeblieft {Entity} (inschakelen|aanzetten)?
+Ik (zou|wil) graag {Entity} (inschakelen|aanzetten)
+Ik wil graag {Entity} uit
+Ik zou graag {Entity} uit hebben
