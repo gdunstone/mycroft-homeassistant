@@ -1,4 +1,6 @@
-turn on {Entity}
-Can you turn on {Entity} please?
-I'd like to turn on {Entity}
-I would like {Entity} on
+Schakel {Entity} in
+Zet {Entity} aan
+Kan je alsjeblieft {Entity} (inschakelen|aanzetten)?
+Ik (zou|wil) graag {Entity} (inschakelen|aanzetten)
+Ik wil graag {Entity} uit
+Ik zou graag {Entity} uit hebben
