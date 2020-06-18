@@ -1,3 +1,2 @@
-decrease (the|) (brightness|intensity) of {{entity}}
-(dim|lower) (the|) {{entity}}
-make (the|) {{entity}} (dimmer|darken)
+verminder (de|) (helderheid|intensiteit) van {{entity}}
+zet (de|het) {{entity}} (zachter|donkerder|lager)

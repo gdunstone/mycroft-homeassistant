@@ -1,4 +1,3 @@
-turn on {Entity}
-Can you turn on {Entity} please?
-I'd like to turn on {Entity}
-I would like {Entity} on
+allumes (le|la|l) {Entity}
+peux-tu allumer (le|la|l) {Entity} sil te plait
+je voudrais allumer (le|la|l) {Entity}
