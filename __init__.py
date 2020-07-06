@@ -474,13 +474,14 @@ class HomeAssistantSkill(FallbackSkill):
             if len(quantity) > 0:
                 quantity = quantity[0]
                 if (quantity.unit.name != "dimensionless" and
-                        quantity.uncertainty <= 0.5):
+                        (quantity.uncertainty or 0.0) <= 0.5):
                     sensor_unit = quantity.unit.name
                     sensor_state = quantity.value
 
         try:
-            value = float(sensor_state)
-            sensor_state = nice_number(value, lang=self.language)
+            value = round(float(sensor_state), 1)
+
+            sensor_state = str(int(value)) if value.is_integer() else str(value) 
         except ValueError:
             pass
 
